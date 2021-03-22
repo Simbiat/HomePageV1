@@ -1,0 +1,514 @@
+@echo off
+cls
+rem *******************************
+rem *      Settings: General      *
+rem *******************************
+	set SCRIPTNAME=Distribution
+	set globalfuncpath=\\path\globalfunctions.cmd
+	set fileage=7
+	setlocal enabledelayedexpansion
+	set folderage=14
+	call %globalfuncpath% getdate
+	set dt=%yy%%mm%%dd%
+	set /a errorsexist=0
+	set /a misfilescount=0
+	set misfilesnames=
+rem *******************************
+rem *  End of Settings: General   *
+rem *******************************
+
+rem **************************************************************************************************************
+rem       Settings: Paths
+rem **************************************************************************************************************
+rem ***Source Paths***
+	SET SOURCE1=\\source1
+	SET SOURCE2=\\source2
+	SET SOURCE3=\\source3
+	SET SOURCE4=\\source4
+	SET SOURCE5=\\source5
+rem ***Destination directories***
+	SET DESTINATION1=\\destination1
+	SET DESTINATION2=\\destination2
+	SET DESTINATION3=\\destination3
+rem ***Partner system directories***
+	SET SYSTEM11=\\system1\Processing
+	SET SYSTEM12=\\system1\Archive
+	SET SYSTEM21=\\system2\Processing
+	SET SYSTEM22=\\system2\Archive
+rem **************************************************************************************************************
+rem       End of Settings: Paths
+rem **************************************************************************************************************
+
+
+
+
+
+Echo *******************************
+Echo Running %SCRIPTNAME%...
+Echo *******************************
+Echo.
+
+
+
+rem **************************************************************************************************************
+rem       User Date Check
+rem **************************************************************************************************************
+Echo Checking directories...
+call :makemisdirint %DESTINATION1% >nul
+call :makemisdirint %DESTINATION1%\backup >nul
+call :makemisdirint %DESTINATION1%\subdir >nul
+call %globalfuncpath% makemisdir %DESTINATION2%\
+Echo.
+
+
+Echo Script is starting with %dt% as business date. Is the date correct?
+call %globalfuncpath% choice "Press 1 for Yes, 2 to change date and Q to Quit: " 1 2
+if %chosen% equ 1 (
+	GOTO mainscript
+)
+If %chosen% equ 2 (
+	set /p dt=Please, enter correct date in YYYYMMDD format:
+	goto mainscript
+)
+rem **************************************************************************************************************
+rem       End of User Date Check
+rem **************************************************************************************************************
+
+
+
+
+:mainscript
+call :makemisdirint %DESTINATION1%\%dt% >nul
+call :makemisdirint %DESTINATION1%\subdir\%dt% >nul
+rem **************************************************************************************************************
+rem       Previous logs removal and backup
+rem **************************************************************************************************************
+Echo.
+
+SET yy=%yy:~2,2%
+:folderclean
+Echo Cleaning old folders on server...
+call %globalfuncpath% datemath %yy% %mm% %dd% - %folderage%
+set minimumdate=%_yy_int%%_mm_str%%_dd_str%
+for /f %%F IN ('dir /A:D /b %DESTINATION1%') do (
+	set dirname=%%F
+	if "!dirname!" NEQ "subdir" (
+		if "!dirname!" LSS "%minimumdate%" (
+			if exist %DESTINATION1%\!dirname!\*.* (
+				del /q /f %DESTINATION1%\!dirname!\*.*
+				rd /s /q %DESTINATION1%\!dirname!
+			) ELSE (
+				rd /s /q %DESTINATION1%\!dirname!
+			)
+		)
+	)
+)
+for /f %%F IN ('dir /A:D /b %DESTINATION1%\subdir') do (
+	set dirname=%%F
+	if "!dirname!" LSS "%minimumdate%" (
+		if exist %DESTINATION1%\subdir\!dirname!\*.* (
+			del /q /f %DESTINATION1%\subdir\!dirname!\*.*
+			rd /s /q %DESTINATION1%\subdir\!dirname!
+		) ELSE (
+			rd /s /q %DESTINATION1%\subdir\!dirname!
+		)
+	)
+)
+If exist %DESTINATION1%\*.txt (
+	del /Q /F %DESTINATION1%\*.txt
+)
+If exist %DESTINATION1%\*.htm (
+	del /Q /F %DESTINATION1%\*.htm
+)
+If exist %DESTINATION1%\subdir\*.txt (
+	del /Q /F %DESTINATION1%\subdir\*.txt
+)
+If exist %DESTINATION1%\subdir\*.htm (
+	del /Q /F %DESTINATION1%\subdir\*.htm
+)
+Echo Old folders were cleaned
+Echo.
+rem **************************************************************************************************************
+rem       End of Previous logs and backup
+rem **************************************************************************************************************
+
+
+
+
+
+rem **************************************************************************************************************
+rem       HTM files related
+rem **************************************************************************************************************
+:HTMrelated
+Echo Checking HTM files' existence for %dt% existence...
+call :filecheckfull html1_%dt%_0*.htm %SYSTEM12%\%dt% %SYSTEM11% %DESTINATION1%\%dt% %SOURCE4%\html1 %DESTINATION1% 1 1
+call :filecheckfull html2_%dt%_0*.htm %SYSTEM12%\%dt% %SYSTEM11% %DESTINATION1%\%dt% %SOURCE4%\html2 %DESTINATION1% 1 1
+call :filecheckfull html3_%dt%_0*.htm %SYSTEM12%\%dt% %SYSTEM11% %DESTINATION1%\%dt% %SOURCE4%\html3 %DESTINATION1% 1 1
+call :filecheckfull html1_%dt%_1*.htm %SYSTEM22%\%dt% %SYSTEM21% %DESTINATION1%\subdir\%dt% %SOURCE5%\html1 %DESTINATION1%\subdir 1 1
+call :filecheckfull html2_%dt%_1*.htm %SYSTEM22%\%dt% %SYSTEM21% %DESTINATION1%\subdir\%dt% %SOURCE5%\html2 %DESTINATION1%\subdir 1 1
+call :filecheckfull html3_%dt%_1*.htm %SYSTEM22%\%dt% %SYSTEM21% %DESTINATION1%\subdir\%dt% %SOURCE5%\html3 %DESTINATION1%\subdir 1 1
+If Exist %DESTINATION1%\*.htm (
+	MOVE /Y %DESTINATION1%\*.htm %DESTINATION1%\%dt% >nul
+)
+If Exist %DESTINATION1%\subdir\*.htm (
+	MOVE /Y %DESTINATION1%\subdir\*.htm %DESTINATION1%\subdir\%dt% >nul
+)
+IF "%misfilesnames%" NEQ "" (
+	color c0
+	call :misfilesoutput HTM
+	call %globalfuncpath% choice "Press 1 to continue as is, 2 to retry or Q to Quit: " 1 2
+	if !chosen! equ 1 (
+		color 07
+		GOTO filecheckstart
+	)
+	If !chosen! equ 2 (
+		color 07
+		goto HTMrelated
+	)
+) else (
+	Echo HTM files for %dt% processed. Continuing...
+	Echo.
+)
+rem **************************************************************************************************************
+rem       End of HTM related
+rem **************************************************************************************************************
+
+
+
+
+
+:filecheckstart
+rem **************************************************************************************************************
+rem       1st set processing
+rem **************************************************************************************************************
+:1setfilecheck
+set /a misfilescount=0
+Echo Processing 1st set files for %dt%...
+call :filecheckfull file1*.txt %SYSTEM12%\%dt% %SYSTEM11% %DESTINATION1%\%dt% %SOURCE1%\%dt% %DESTINATION1% 0
+call :filecheckfull file2*.txt %SYSTEM12%\%dt% %SYSTEM11% %DESTINATION1%\%dt% %SOURCE1%\%dt% %DESTINATION1% 0
+call :filecheckfull file3*.txt %SYSTEM12%\%dt% %SYSTEM11% %DESTINATION1%\%dt% %SOURCE1%\%dt% %DESTINATION1% 0
+call :filecheckfull file4*.txt %SYSTEM12%\%dt% %SYSTEM11% %DESTINATION1%\%dt% %SOURCE1%\%dt% %DESTINATION1% 0
+call :filecheckfull file5*.txt %SYSTEM12%\%dt% %SYSTEM11% %DESTINATION1%\%dt% %SOURCE1%\%dt% %DESTINATION1% 0
+call :filecheckfull file6*.txt %SYSTEM12%\%dt% %SYSTEM11% %DESTINATION1%\%dt% %SOURCE1%\%dt% %DESTINATION1% 0
+call :filecheckfull file7*.txt %SYSTEM12%\%dt% %SYSTEM11% %DESTINATION1%\%dt% %SOURCE1%\%dt% %DESTINATION1% 0
+call :filecheckfull file8*.txt %SYSTEM12%\%dt% %SYSTEM11% %DESTINATION1%\%dt% %SOURCE1%\%dt% %DESTINATION1% 0
+call :filecheckfull file9*.txt %SYSTEM12%\%dt% %SYSTEM11% %DESTINATION1%\%dt% %SOURCE1%\%dt% %DESTINATION1% 0
+
+call :filecheckfull file1*.txt %SYSTEM22%\%dt% %SYSTEM21% %DESTINATION1%\subdir\%dt% %DESTINATION1% %DESTINATION1%\subdir 0
+call :filecheckfull file2*.txt %SYSTEM22%\%dt% %SYSTEM21% %DESTINATION1%\subdir\%dt% %DESTINATION1% %DESTINATION1%\subdir 0
+call :filecheckfull file3*.txt %SYSTEM22%\%dt% %SYSTEM21% %DESTINATION1%\subdir\%dt% %DESTINATION1% %DESTINATION1%\subdir 0
+call :filecheckfull file4*.txt %SYSTEM22%\%dt% %SYSTEM21% %DESTINATION1%\subdir\%dt% %DESTINATION1% %DESTINATION1%\subdir 0
+call :filecheckfull file5*.txt %SYSTEM22%\%dt% %SYSTEM21% %DESTINATION1%\subdir\%dt% %DESTINATION1% %DESTINATION1%\subdir 0
+call :filecheckfull file6*.txt %SYSTEM22%\%dt% %SYSTEM21% %DESTINATION1%\subdir\%dt% %DESTINATION1% %DESTINATION1%\subdir 0
+call :filecheckfull file7*.txt %SYSTEM22%\%dt% %SYSTEM21% %DESTINATION1%\subdir\%dt% %DESTINATION1% %DESTINATION1%\subdir 0
+call :filecheckfull file8*.txt %SYSTEM22%\%dt% %SYSTEM21% %DESTINATION1%\subdir\%dt% %DESTINATION1% %DESTINATION1%\subdir 0
+call :filecheckfull file9*.txt %SYSTEM22%\%dt% %SYSTEM21% %DESTINATION1%\subdir\%dt% %DESTINATION1% %DESTINATION1%\subdir 0
+
+call :filecheck file1*.txt %DESTINATION3% %DESTINATION1% 0 %SOURCE1%\%dt%
+call :filecheck file2*.txt %DESTINATION3% %DESTINATION1% 0 %SOURCE1%\%dt%
+call :filecheck file3*.txt %DESTINATION3% %DESTINATION1% 0 %SOURCE1%\%dt%
+call :filecheck file4*.txt %DESTINATION3% %DESTINATION1% 0 %SOURCE1%\%dt%
+call :filecheck file5*.txt %DESTINATION3% %DESTINATION1% 0 %SOURCE1%\%dt%
+call :filecheck file6*.txt %DESTINATION3% %DESTINATION1% 0 %SOURCE1%\%dt%
+call :filecheck file7*.txt %DESTINATION3% %DESTINATION1% 0 %SOURCE1%\%dt%
+call :filecheck file8*.txt %DESTINATION3% %DESTINATION1% 0 %SOURCE1%\%dt%
+call :filecheck file9*.txt %DESTINATION3% %DESTINATION1% 0 %SOURCE1%\%dt%
+
+if Exist %DESTINATION1%\*.txt (
+	MOVE /Y %DESTINATION1%\*.txt %DESTINATION1%\%dt% >nul
+)
+If Exist %DESTINATION1%\subdir\*.txt (
+	MOVE /Y %DESTINATION1%\subdir\*.txt %DESTINATION1%\subdir\%dt% >nul
+)
+
+IF "%misfilesnames%" NEQ "" (
+	color c0
+	call :misfilesoutput 1set
+	call %globalfuncpath% choice "Press 1 to continue as is, 2 to retry or Q to Quit: " 1 2
+	if !chosen! equ 1 (
+		color 07
+		GOTO 2setfilecheck
+	)
+	If !chosen! equ 2 (
+		color 07
+		goto 1setfilecheck
+	)
+) else (
+	Echo 1st set files for %dt% processed. Continuing...
+	Echo.
+)
+rem **************************************************************************************************************
+rem       End of 1st set processing
+rem **************************************************************************************************************
+
+
+
+
+
+rem **************************************************************************************************************
+rem       2nd set processing
+rem **************************************************************************************************************
+:2setfilecheck
+set /a misfilescount=0
+Echo Processing 2nd set files for %dt%...
+call :filecheckfull file1*.txt %SYSTEM22%\%dt% %SYSTEM21% %DESTINATION1%\subdir\%dt% %SOURCE3%\%dt% %DESTINATION1%\subdir 0
+call :filecheckfull file2*.txt %SYSTEM22%\%dt% %SYSTEM21% %DESTINATION1%\subdir\%dt% %SOURCE3%\%dt% %DESTINATION1%\subdir 0
+
+call :filecheckfull file1*.txt %SYSTEM12%\%dt% %SYSTEM11% %DESTINATION1%\%dt% %DESTINATION1%\subdir %DESTINATION1% 0
+call :filecheckfull file2*.txt %SYSTEM12%\%dt% %SYSTEM11% %DESTINATION1%\%dt% %DESTINATION1%\subdir %DESTINATION1% 0
+
+call :filecheck file1*.txt %DESTINATION3% %DESTINATION1%\subdir 0 %SOURCE3%\%dt%
+call :filecheck file2*.txt %DESTINATION3% %DESTINATION1%\subdir 0 %SOURCE3%\%dt%
+
+If Exist %DESTINATION1%\*.txt (
+	MOVE /Y %DESTINATION1%\*.txt %DESTINATION1%\%dt% >nul
+)
+If Exist %DESTINATION1%\subdir\*.txt (
+	MOVE /Y %DESTINATION1%\subdir\*.txt %DESTINATION1%\subdir\%dt% >nul
+)
+
+IF "%misfilesnames%" NEQ "" (
+	color c0
+	call :misfilesoutput 2set
+	call %globalfuncpath% choice "Press 1 to continue as is, 2 to retry or Q to Quit: " 1 2
+	if !chosen! equ 1 (
+		color 07
+		GOTO 3setfilecheck
+	)
+	If !chosen! equ 2 (
+		color 07
+		goto 2setfilecheck
+	)
+) else (
+	Echo 2nd set files for %dt% processed. Continuing...
+	Echo.
+)
+rem **************************************************************************************************************
+rem       End of 2nd set processing
+rem **************************************************************************************************************
+
+
+
+
+
+rem **************************************************************************************************************
+rem       3rd set processing
+rem **************************************************************************************************************
+:3setfilecheck
+set /a misfilescount=0
+Echo Processing 3rd set files for %dt%...
+call :filecheckfull file1*.txt %SYSTEM12%\%dt% %SYSTEM11% %DESTINATION1%\%dt% %SOURCE2%\%dt% %DESTINATION1% 0
+call :filecheckfull file1*.txt %SYSTEM22%\%dt% %SYSTEM21% %DESTINATION1%\subdir\%dt% %DESTINATION1% %DESTINATION1%\subdir 0
+
+call :filecheck CorporateIncomingNonConsolPO*.txt %DESTINATION3% %DESTINATION1% 0 %SOURCE2%\%dt%
+
+If Exist %DESTINATION1%\*.txt (
+	MOVE /Y %DESTINATION1%\*.txt %DESTINATION1%\%dt% >nul
+)
+If Exist %DESTINATION1%\subdir\*.txt (
+	MOVE /Y %DESTINATION1%\subdir\*.txt %DESTINATION1%\subdir\%dt% >nul
+)
+
+IF "%misfilesnames%" NEQ "" (
+	color c0
+	call :misfilesoutput 3set
+	call %globalfuncpath% choice "Press 1 to continue as is, 2 to retry or Q to Quit: " 1 2
+	if !chosen! equ 1 (
+		color 20
+		Echo 3rd set files for %dt% processed. Continuing...
+		Echo.
+		Echo.
+		Echo.
+		Echo.
+		Echo.
+		Echo.
+		Echo All files processed.
+	)
+	If !chosen! equ 2 (
+		color 07
+		goto 3setfilecheck
+	)
+) else (
+	color 20
+	Echo 3rd set files for %dt% processed. Continuing...
+	Echo.
+	Echo.
+	Echo.
+	Echo.
+	Echo.
+	Echo.
+	Echo All files processed.
+)
+rem **************************************************************************************************************
+rem       End of 3rd set processing
+rem **************************************************************************************************************
+:endofproc
+
+Echo Press any key to exit
+pause>nul
+exit
+
+
+
+
+rem **************************************************************************************************************
+rem       Global Procedures
+rem **************************************************************************************************************
+:makemisdirint
+	rem %1 - what directory to create if missing (required)
+	if not exist %1 (
+		echo Creating directory %1...
+		mkdir %1 >nul
+		if %errorlevel% neq 0 (
+			color c0
+			Echo Failed to create directory %1. Create it manually and restart script.
+			Echo Press any key to exit
+			pause>nul
+			exit
+		) Else (
+			echo Directory %1 successfully created
+			Echo.
+		)
+	)
+	exit /b
+
+:misfilesoutput
+	Echo.
+	Echo.
+	Echo.
+	Echo Following files from %1 are missing:
+	set misfilesnames=%misfilesnames:~1%
+	:stringLOOP
+	FOR /F "delims=;" %%A IN ("!misfilesnames!") DO (
+		set substring=%%A
+		echo !substring!
+		:striploop
+    		set stripchar=!misfilesnames:~0,1!
+    		set misfilesnames=!misfilesnames:~1!
+		if "!misfilesnames!" EQU "" goto stringloop
+		if "!stripchar!" NEQ ";" goto striploop
+		goto stringloop
+	)
+	Echo.
+	Echo.
+	Echo.
+	set misfilesname=
+	exit /b
+
+
+
+:filecheckfull
+	rem %1 - filemask to check (required)
+	rem %2 - archive folder (required)
+	rem %3 - processing folder (required)
+	rem %4 - edelivery folder (required)
+	rem %5 - source folder (required)
+	rem %6 - destination folder (required)
+	rem %7 - move flag (required)
+	rem %8 - notification flag (optional)
+	If Exist %5\%1 (
+		for /f %%d in ('dir /b %5\%1') do (
+			set filename=%%d
+			If Exist %6\!filename! (
+				Echo !filename! was found and is being verified...
+				FC %6\!filename! %5\!filename! | FIND "FC: no dif" > nul 
+   				if !errorlevel! neq 0 (
+					call :filecheck !filename! %6 %5 %7
+				) else (
+					Echo !filename! already processed
+				)
+			) else (
+				If Exist %2\!filename! (
+					Echo !filename! was found and is being verified...
+					FC %2\!filename! %5\!filename! | FIND "FC: no dif" > nul 
+   					if !errorlevel! neq 0 (
+						call :filecheck !filename! %6 %5
+					) else (
+						Echo !filename! already imported
+					)
+				) else (
+					If Exist %3\!filename! (
+						Echo !filename! was found and is being verified...
+						FC %3\!filename! %5\!filename! | FIND "FC: no dif" > nul 
+   						if !errorlevel! neq 0 (
+							call :filecheck !filename! %6 %5
+						) else (
+							Echo !filename! is being imported
+						)
+					) else (
+						If Exist %4\!filename! (
+							Echo !filename! was found and is being verified...
+							FC %4\!filename! %5\!filename! | FIND "FC: no dif" > nul 
+   							if !errorlevel! neq 0 (
+								call :filecheck !filename! %6 %5
+							) else (
+								Echo !filename! is waiting to be picked up
+							)
+						) else (
+							call :filecheck !filename! %6 %5 %7
+						)
+					)
+				)
+			)
+		)
+	) else (
+		If Not Exist %2\%1 (
+			If Not Exist %3\%1 (
+				If Not Exist %4\%1 (
+					If Not Exist %6\%1 (
+						set misfilesnames=%misfilesnames%;%5\%1
+					) else (
+						If [%8] EQU [1] (
+							Echo %1 mask was already moved
+						)
+					)
+				) else (
+					If [%8] EQU [1] (
+						Echo %1 mask is waiting to be picked up
+					)
+				)
+			) else (
+				If [%8] EQU [1] (
+					Echo %1 mask is being imported
+				)
+			)
+		) else (
+			If [%8] EQU [1] (
+				Echo %1 mask already imported
+			)
+		)
+	)
+	exit /b
+
+
+
+:filecheck
+	rem %1 - filemask to check (required)
+	rem %2 - destination folder (required)
+	rem %3 - source folder (required)
+	rem %4 - move flag (optional)
+	rem %5 - extra source folder (optional)
+	If Exist %3\%1 (
+		If [%4] EQU [1] (
+			ROBOCOPY %3 %2 %1 /MOV /A-:R /Z /XX /R:20 /W:30 /NS /NDL /NJH /NC /NJS
+		) else (
+			ROBOCOPY %3 %2 %1 /A-:R /Z /XX /R:20 /W:30 /NS /NDL /NJH /NC /NJS
+		)
+	) else (
+		If Not Exist %2\%1 (
+			IF "%5" NEQ "" (
+				If Exist %5\%1 (
+					If [%4] EQU [1] (
+						ROBOCOPY %5 %2 %1 /MOV /A-:R /Z /XX /R:20 /W:30 /NS /NDL /NJH /NC /NJS
+					) else (
+						ROBOCOPY %5 %2 %1 /A-:R /Z /XX /R:20 /W:30 /NS /NDL /NJH /NC /NJS
+					)
+				) else (
+					set misfilesnames=%misfilesnames%;%5\%1
+				)
+			) else (
+				set misfilesnames=%misfilesnames%;%3\%1
+			)
+		)
+	)
+	exit/b

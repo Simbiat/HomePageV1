@@ -1,0 +1,71 @@
+excludeNodes = Array("Common","ProcDate","CurrentUIC","BckDirectory")
+curws=objNet.ComputerName
+Configs=Array(_
+		Array(ReadIni("Files", "Uarm_loc_cfg"), ReadIni("Files", "Uarm_net_cfg")),_
+		Array(ReadIni("Paths", "Uarm_loc_cfg_path")+curws+".cfg", ReadIni("Paths", "Uarm_net_cfg_path")+curws+".cfg")_
+	)
+
+'%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+' Configuration matching
+'%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+	Function eXcluded(nName)
+		eXcluded=False
+		Dim k
+		For k=0 To UBound(excludeNodes)
+			If ( nName = excludeNodes(k) ) Then
+				eXcluded=True
+				Exit For
+			End If
+		Next
+	End Function
+
+	Function compareNodes(node1, node2, file1, file2)
+		Dim m
+		If (node1.nodeName = node2.nodeName) And (node1.childNodes.length = node2.childNodes.length) Then
+			For m=0 To node1.childNodes.length-1
+				If (Not eXcluded(node1.childNodes(m).nodeName)) And (node1.childNodes(m).text <> node2.childNodes(m).text) Then
+					call writeinfile (HTA_Log & dateyyymmdd() & ".log", "[Err   ]" & logstartline() & "Diff @ " & node1.childNodes(m).tagName & "   " & file1 & " : " & node1.childNodes(m).text & "   " & file2 & " : " & node2.childNodes(m).text, "Diff @ " & node1.childNodes(m).tagName & "   " & file1 & " : " & node1.childNodes(m).text & "   " & file2 & " : " & node2.childNodes(m).text, ForAppending, 3)
+					compareNodes = 0
+					Exit Function
+				End If  	
+			Next    
+		Else
+			call writeinfile (HTA_Log & dateyyymmdd() & ".log", "[Err   ]" & logstartline() & "Config files have different structures!!!", "Config files have different structures!!!", ForAppending, 3)
+			compareNodes = 0
+			Exit Function
+		End If
+		compareNodes = 1
+	End Function
+
+	Function runarm()
+		Dim C, doc1, doc2, j, t
+		For c=0 To UBound(Configs)
+			xmlDoc.async = false
+			xmlDoc.load Configs(c)(0)
+			set doc1 = xmlDoc.documentElement
+			if(doc1 is nothing) Then
+				MsgBox ("Could not load " & Configs(c)(0) & "!")
+				Exit Function
+			end if
+			xmlDoc.async = false
+			xmlDoc.load Configs(c)(1)
+			set doc2 = xmlDoc.documentElement
+			If(doc2 is nothing) Then
+				Msgbox ("Could not load " & Configs(c)(1) & "!")
+				Exit Function
+			end if
+			For j=0 to doc2.childNodes.length-1
+				If Not eXcluded(doc2.childNodes(j).nodeName) Then
+					t=compareNodes(doc2.childNodes(j), doc1.childNodes(j), Configs(c)(1), Configs(c)(0))
+					if t = 0 Then
+						Exit Function
+					End If
+				End If	
+			Next
+		Next
+		if hashfilecheck(prochashes) = true Then
+			statusbar.value = "Starting UARM..."
+			oShell.Run "%comspec% /c call """ & uarmpath & """ ", 0, False
+		end if
+	End Function
